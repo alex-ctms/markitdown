@@ -70,6 +70,25 @@ pip install -e 'packages/markitdown[all]'
 
 ## Usage
 
+### Desktop GUI
+
+A cross-platform desktop app for Linux, macOS, and Windows.
+
+**Requirements:** Python 3.10+, PySide6
+
+```bash
+pip install PySide6 'markitdown[all]'
+python gui/markitdown_gui.py
+```
+
+Features:
+- Drag and drop files directly onto the window
+- Bulk upload — drop or browse multiple files simultaneously
+- Background conversion — UI stays responsive during processing
+- Toggle between **raw Markdown** and **rendered preview**
+- **Copy** output to clipboard
+- **Download** individual `.md` files or **Download All** as a `.zip`
+
 ### Web App
 
 A Docker-based web interface is included for drag-and-drop file conversion.
