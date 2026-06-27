@@ -70,6 +70,30 @@ pip install -e 'packages/markitdown[all]'
 
 ## Usage
 
+### Web App
+
+A Docker-based web interface is included for drag-and-drop file conversion.
+
+**Requirements:** Docker with Compose
+
+```bash
+docker compose up -d
+```
+
+Then open `http://localhost:3000` (or `3001` if 3000 is taken). Features:
+
+- Drag and drop any supported file format
+- Bulk upload — drop multiple files at once
+- Toggle between **raw Markdown** and **rendered preview**
+- **Copy** output to clipboard
+- **Download** individual `.md` files or **Download All** as a `.zip`
+
+To rebuild after source changes:
+
+```bash
+docker compose build && docker compose up -d
+```
+
 ### Command-Line
 
 ```bash

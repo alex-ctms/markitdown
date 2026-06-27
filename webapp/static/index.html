@@ -1,0 +1,607 @@
+<title>MarkItDown</title>
+<meta name="description" content="Convert files to Markdown via drag and drop">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #1e2433;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  header h1 { font-size: 18px; font-weight: 600; color: #f8fafc; }
+  header span { font-size: 13px; color: #64748b; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── Left panel ── */
+  .left {
+    width: 320px;
+    flex-shrink: 0;
+    border-right: 1px solid #1e2433;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 14px;
+  }
+
+  .drop-zone {
+    border: 2px dashed #2d3748;
+    border-radius: 12px;
+    padding: 30px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    flex-shrink: 0;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #6366f1;
+    background: rgba(99,102,241,0.06);
+  }
+  .drop-zone svg { width: 36px; height: 36px; color: #4a5568; margin-bottom: 10px; }
+  .drop-zone.drag-over svg { color: #6366f1; }
+  .drop-zone p { font-size: 13px; color: #64748b; line-height: 1.5; }
+  .drop-zone p strong { color: #94a3b8; }
+  .browse-btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 7px 16px;
+    background: #1e2433;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .browse-btn:hover { background: #252d3d; color: #e2e8f0; }
+  #file-input { display: none; }
+
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .file-list-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #4a5568;
+  }
+
+  .file-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+    min-width: 0;
+  }
+  .file-item:hover { background: #1a2035; }
+  .file-item.active { background: #1a2035; border-color: #6366f1; }
+
+  .file-icon {
+    width: 30px; height: 30px; border-radius: 6px;
+    background: #1e2433;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 13px;
+  }
+  .file-meta { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 13px; font-weight: 500; color: #cbd5e1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-status { font-size: 11px; color: #4a5568; margin-top: 1px; }
+  .file-status.ok { color: #22c55e; }
+  .file-status.err { color: #ef4444; }
+  .file-status.loading { color: #6366f1; }
+  .spinner {
+    width: 13px; height: 13px;
+    border: 2px solid #2d3748; border-top-color: #6366f1;
+    border-radius: 50%; animation: spin 0.6s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Right panel ── */
+  .right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .output-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1e2433;
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .output-filename {
+    font-size: 13px; font-weight: 500; color: #94a3b8;
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .btn {
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: none; transition: opacity 0.15s, background 0.15s;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.35; cursor: default; }
+  .btn-ghost { background: #1e2433; color: #94a3b8; border: 1px solid #2d3748; }
+  .btn-ghost:hover:not(:disabled) { background: #252d3d; color: #e2e8f0; }
+  .btn-ghost.active-view { background: #312e81; color: #a5b4fc; border-color: #4338ca; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #4f52d4; }
+  .btn-success { background: #166534; color: #4ade80; border: 1px solid #14532d; }
+  .btn-success:hover:not(:disabled) { background: #15803d; }
+
+  .output-area { flex: 1; overflow: hidden; position: relative; }
+
+  textarea#output {
+    width: 100%; height: 100%; background: transparent; border: none;
+    outline: none; resize: none; padding: 20px;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 13px; line-height: 1.7; color: #cbd5e1; tab-size: 2;
+  }
+
+  #preview {
+    display: none; height: 100%; overflow-y: auto; padding: 20px 28px;
+  }
+  #preview h1, #preview h2, #preview h3,
+  #preview h4, #preview h5, #preview h6 {
+    color: #f8fafc; margin: 1.2em 0 0.4em; line-height: 1.3;
+  }
+  #preview h1 { font-size: 1.75em; border-bottom: 1px solid #1e2433; padding-bottom: 0.3em; }
+  #preview h2 { font-size: 1.4em; border-bottom: 1px solid #1e2433; padding-bottom: 0.2em; }
+  #preview h3 { font-size: 1.15em; }
+  #preview p { margin: 0.6em 0; line-height: 1.7; color: #cbd5e1; }
+  #preview a { color: #818cf8; text-decoration: underline; }
+  #preview strong { color: #f1f5f9; }
+  #preview em { font-style: italic; }
+  #preview code {
+    background: #1a2035; padding: 2px 6px; border-radius: 4px;
+    font-family: ui-monospace, monospace; font-size: 0.88em; color: #a5b4fc;
+  }
+  #preview pre {
+    background: #0a0d14; border: 1px solid #1e2433; border-radius: 8px;
+    padding: 16px; overflow-x: auto; margin: 1em 0;
+  }
+  #preview pre code { background: none; padding: 0; color: #cbd5e1; font-size: 0.9em; }
+  #preview ul, #preview ol { padding-left: 1.6em; margin: 0.6em 0; }
+  #preview li { margin: 0.25em 0; color: #cbd5e1; }
+  #preview table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 13px; }
+  #preview th, #preview td { border: 1px solid #2d3748; padding: 8px 12px; text-align: left; }
+  #preview th { background: #1e2433; font-weight: 600; color: #f1f5f9; }
+  #preview tr:nth-child(even) td { background: #0d1018; }
+  #preview blockquote {
+    border-left: 3px solid #6366f1; padding-left: 14px;
+    color: #64748b; margin: 0.8em 0; font-style: italic;
+  }
+  #preview hr { border: none; border-top: 1px solid #1e2433; margin: 1.5em 0; }
+  #preview img { max-width: 100%; border-radius: 6px; margin: 0.5em 0; }
+  #preview del { text-decoration: line-through; color: #64748b; }
+
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; gap: 12px; color: #2d3748; pointer-events: none;
+  }
+  .empty-state svg { width: 44px; height: 44px; }
+  .empty-state p { font-size: 14px; }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+  .toast.error   { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+</style>
+
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/>
+    <line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+  <h1>MarkItDown</h1>
+  <span>Drop files · Get Markdown</span>
+</header>
+
+<div class="main">
+  <div class="left">
+    <div class="drop-zone" id="drop-zone">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <p><strong>Drop files here</strong><br>PDF, DOCX, PPTX, XLSX,<br>images, HTML, CSV, and more</p>
+      <label class="browse-btn" for="file-input">Browse files</label>
+      <input type="file" id="file-input" multiple>
+    </div>
+
+    <div class="list-header">
+      <span class="file-list-label">Converted files</span>
+      <button class="btn btn-success" id="btn-dl-all" disabled>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download All
+      </button>
+    </div>
+    <div class="file-list" id="file-list"></div>
+  </div>
+
+  <div class="right">
+    <div class="output-header">
+      <span class="output-filename" id="output-filename">No file selected</span>
+      <button class="btn btn-ghost" id="btn-view" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        View MD
+      </button>
+      <button class="btn btn-ghost" id="btn-copy" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Copy
+      </button>
+      <button class="btn btn-primary" id="btn-download" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download .md
+      </button>
+    </div>
+
+    <div class="output-area">
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <p>Drop a file to see the Markdown output</p>
+      </div>
+      <textarea id="output" spellcheck="false" readonly></textarea>
+      <div id="preview"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── DOM refs ──
+  const dropZone      = document.getElementById('drop-zone');
+  const fileInput     = document.getElementById('file-input');
+  const fileList      = document.getElementById('file-list');
+  const outputEl      = document.getElementById('output');
+  const previewEl     = document.getElementById('preview');
+  const emptyState    = document.getElementById('empty-state');
+  const outputFilename= document.getElementById('output-filename');
+  const btnView       = document.getElementById('btn-view');
+  const btnCopy       = document.getElementById('btn-copy');
+  const btnDownload   = document.getElementById('btn-download');
+  const btnDlAll      = document.getElementById('btn-dl-all');
+  const toast         = document.getElementById('toast');
+
+  // ── State ──
+  const store   = {};   // id → { name, status, markdown }
+  let activeId  = null;
+  let viewMode  = 'raw'; // 'raw' | 'preview'
+
+  // ── Toast ──
+  function showToast(msg, type = 'success') {
+    toast.textContent = msg;
+    toast.className = `toast ${type} show`;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { toast.className = 'toast'; }, 2600);
+  }
+
+  // ── Drag & drop ──
+  ['dragenter', 'dragover'].forEach(e =>
+    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.add('drag-over'); }));
+  ['dragleave', 'drop'].forEach(e =>
+    dropZone.addEventListener(e, ev => { ev.preventDefault(); dropZone.classList.remove('drag-over'); }));
+  dropZone.addEventListener('drop', ev => handleFiles(ev.dataTransfer.files));
+  fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+  // ── File icons ──
+  const EXT_ICONS = {
+    pdf:'📄', doc:'📝', docx:'📝', ppt:'📊', pptx:'📊',
+    xls:'📈', xlsx:'📈', png:'🖼️', jpg:'🖼️', jpeg:'🖼️',
+    gif:'🖼️', webp:'🖼️', html:'🌐', htm:'🌐', csv:'📋',
+    json:'📋', xml:'📋', mp3:'🎵', wav:'🎵', mp4:'🎬',
+    epub:'📚', zip:'🗜️',
+  };
+  function extIcon(name) {
+    return EXT_ICONS[(name.split('.').pop() || '').toLowerCase()] || '📁';
+  }
+
+  // ── Handle dropped/selected files ──
+  function handleFiles(files) {
+    [...files].forEach(file => {
+      const id = `${file.name}-${Math.random()}`;
+      store[id] = { name: file.name, status: 'loading', markdown: '' };
+      renderFileItem(id);
+      uploadFile(id, file);
+    });
+    fileInput.value = '';
+  }
+
+  // ── Render file list item ──
+  function renderFileItem(id) {
+    let item = document.getElementById(`fi-${CSS.escape(id)}`);
+    if (!item) {
+      item = document.createElement('div');
+      item.className = 'file-item';
+      item.id = `fi-${CSS.escape(id)}`;
+      item.addEventListener('click', () => selectFile(id));
+      fileList.prepend(item);
+    }
+    const { name, status } = store[id];
+    const labelMap = { loading: 'Converting…', ok: 'Done', error: 'Error' };
+    item.innerHTML = `
+      <div class="file-icon">${extIcon(name)}</div>
+      <div class="file-meta">
+        <div class="file-name" title="${name}">${name}</div>
+        <div class="file-status ${status === 'error' ? 'err' : status}">${labelMap[status]}</div>
+      </div>
+      ${status === 'loading' ? '<div class="spinner"></div>' : ''}
+    `;
+    if (activeId === id) item.classList.add('active');
+  }
+
+  // ── Select file to view ──
+  function selectFile(id) {
+    if (store[id].status !== 'ok') return;
+    activeId = id;
+    document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`fi-${CSS.escape(id)}`).classList.add('active');
+    outputEl.value = store[id].markdown;
+    outputFilename.textContent = store[id].name;
+    emptyState.style.display = 'none';
+    btnCopy.disabled = false;
+    btnDownload.disabled = false;
+    btnView.disabled = false;
+    applyViewMode();
+  }
+
+  // ── Upload & convert ──
+  async function uploadFile(id, file) {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      const res = await fetch('/convert', { method: 'POST', body: form });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || res.statusText); }
+      const data = await res.json();
+      store[id].markdown = data.markdown;
+      store[id].status = 'ok';
+      renderFileItem(id);
+      updateDlAllBtn();
+      // Auto-select if first completed file
+      if (!activeId) selectFile(id);
+      else if (activeId === id) selectFile(id);
+    } catch (e) {
+      store[id].status = 'error';
+      renderFileItem(id);
+      showToast(`Failed: ${e.message}`, 'error');
+    }
+  }
+
+  // ── Update "Download All" button ──
+  function updateDlAllBtn() {
+    const count = Object.values(store).filter(f => f.status === 'ok').length;
+    btnDlAll.disabled = count === 0;
+  }
+
+  // ── View mode toggle (Raw ↔ Preview) ──
+  function applyViewMode() {
+    if (viewMode === 'raw') {
+      outputEl.style.display = 'block';
+      previewEl.style.display = 'none';
+      btnView.classList.remove('active-view');
+      btnView.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>View MD`;
+    } else {
+      outputEl.style.display = 'none';
+      previewEl.style.display = 'block';
+      previewEl.innerHTML = renderMarkdown(outputEl.value);
+      btnView.classList.add('active-view');
+      btnView.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>Raw`;
+    }
+  }
+
+  btnView.addEventListener('click', () => {
+    if (btnView.disabled) return;
+    viewMode = viewMode === 'raw' ? 'preview' : 'raw';
+    applyViewMode();
+  });
+
+  // ── Copy ──
+  btnCopy.addEventListener('click', async () => {
+    if (!outputEl.value) return;
+    await navigator.clipboard.writeText(outputEl.value);
+    showToast('Copied to clipboard');
+  });
+
+  // ── Download single .md ──
+  btnDownload.addEventListener('click', () => {
+    if (!activeId || !store[activeId]) return;
+    const name = store[activeId].name.replace(/\.[^.]+$/, '') + '.md';
+    const blob = new Blob([outputEl.value], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // ── Download All as zip (server-side) ──
+  btnDlAll.addEventListener('click', async () => {
+    const files = Object.values(store)
+      .filter(f => f.status === 'ok')
+      .map(f => ({ name: f.name, markdown: f.markdown }));
+    if (!files.length) return;
+    btnDlAll.disabled = true;
+    try {
+      const res = await fetch('/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(files),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'markitdown-export.zip'; a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${files.length} file${files.length > 1 ? 's' : ''}`);
+    } catch (e) {
+      showToast(`Download failed: ${e.message}`, 'error');
+    } finally {
+      updateDlAllBtn();
+    }
+  });
+
+  // ── Markdown renderer ──
+  function renderMarkdown(text) {
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function inline(s) {
+      let r = esc(s);
+      r = r.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img alt="$1" src="$2">');
+      r = r.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      r = r.replace(/`([^`]+)`/g, '<code>$1</code>');
+      r = r.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      r = r.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      r = r.replace(/__(.+?)__/g, '<strong>$1</strong>');
+      r = r.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+      r = r.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+      r = r.replace(/~~(.+?)~~/g, '<del>$1</del>');
+      return r;
+    }
+
+    const lines = text.split('\n');
+    let html = '';
+    let inCode = false, codeLang = '', codeLines = [];
+    let inList = null, listItems = [];
+    let inTable = false, tableRows = [], isFirstTableRow = true;
+
+    function flushList() {
+      if (!inList) return;
+      html += `<${inList}>${listItems.map(t => `<li>${inline(t)}</li>`).join('')}</${inList}>`;
+      listItems = []; inList = null;
+    }
+    function flushTable() {
+      if (!tableRows.length) { inTable = false; return; }
+      let t = '<table>';
+      tableRows.forEach((row, ri) => {
+        const cell = ri === 0 ? 'th' : 'td';
+        t += `<tr>${row.map(c => `<${cell}>${inline(c.trim())}</${cell}>`).join('')}</tr>`;
+      });
+      t += '</table>';
+      html += t;
+      tableRows = []; inTable = false; isFirstTableRow = true;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (/^```/.test(line)) {
+        if (!inCode) {
+          flushList(); flushTable();
+          inCode = true; codeLang = line.slice(3).trim(); codeLines = [];
+        } else {
+          inCode = false;
+          html += `<pre><code>${esc(codeLines.join('\n'))}</code></pre>`;
+        }
+        continue;
+      }
+      if (inCode) { codeLines.push(line); continue; }
+
+      // Table
+      if (/^\|/.test(line)) {
+        if (/^[\s|:-]+$/.test(line)) continue; // separator row
+        flushList();
+        inTable = true;
+        const cells = line.replace(/^\||\|$/g, '').split('|');
+        tableRows.push(cells);
+        continue;
+      }
+      if (inTable) { flushTable(); }
+
+      if (line.trim() === '') { flushList(); continue; }
+
+      if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        flushList(); html += '<hr>'; continue;
+      }
+
+      const hm = line.match(/^(#{1,6})\s+(.+)/);
+      if (hm) {
+        flushList();
+        const n = hm[1].length;
+        html += `<h${n}>${inline(hm[2].replace(/\s+#+\s*$/, ''))}</h${n}>`;
+        continue;
+      }
+
+      if (/^> /.test(line)) {
+        flushList(); html += `<blockquote><p>${inline(line.slice(2))}</p></blockquote>`; continue;
+      }
+
+      const ulm = line.match(/^(\s*)[-*+]\s+(.+)/);
+      if (ulm) {
+        if (inList === 'ol') flushList();
+        inList = 'ul'; listItems.push(ulm[2]); continue;
+      }
+
+      const olm = line.match(/^(\s*)\d+\.\s+(.+)/);
+      if (olm) {
+        if (inList === 'ul') flushList();
+        inList = 'ol'; listItems.push(olm[2]); continue;
+      }
+
+      flushList();
+      html += `<p>${inline(line)}</p>`;
+    }
+
+    flushList(); flushTable();
+    if (inCode) html += `<pre><code>${esc(codeLines.join('\n'))}</code></pre>`;
+    return html;
+  }
+</script>
